@@ -9,6 +9,7 @@ import {
 } from '@stream-io/video-react-sdk';
 import { getToken } from '@/app/actions';
 import VideoContent from './VideoContent';
+import JoinMeetingLoad from './JoingMeetingLoad';
 
 const API_KEY = process.env.NEXT_PUBLIC_STREAM_VIDEO_API_KEY!;
 
@@ -90,9 +91,7 @@ const VideoCall: React.FC<VideoCallProps> = ({ meetingId }) => {
 
   if (!client || !call) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-gray-900">
-        <div className="text-white text-xl">Joining meeting...</div>
-      </div>
+      <JoinMeetingLoad />
     );
   }  
 

@@ -5,13 +5,110 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Mic, MicOff, Video, VideoOff, User, Check } from 'lucide-react';
+import { Textarea } from "@/components/ui/textarea";
+import { 
+  Mic, MicOff, Video, VideoOff, User, Check, Copy, Plus, Mail, X 
+} from 'lucide-react';
+import { useForm, Controller } from 'react-hook-form';
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"; // shadcn's Tabs
+import { cn } from "@/lib/utils"; // Utility for conditional classNames
+import { DatePickerWithPresets } from './date-picker'; // Corrected import path
+import { ToastProvider } from "@/components/ui/toast"; // shadcn's Toast
+import { useToast } from '@/hooks/use-toast'; // Ensure this hook is correctly implemented
 
-export default function JoinMeeting() {
+type FormData = {
+  meetingId: string;
+  name: string;
+  title: string;
+  description: string;
+  dateTime: Date | null;
+};
+
+// Custom EmailInput Component
+const EmailInput: React.FC<{
+  emails: string[];
+  setEmails: React.Dispatch<React.SetStateAction<string[]>>;
+}> = ({ emails, setEmails }) => {
+  const [input, setInput] = useState('');
+  const [invalidEmail, setInvalidEmail] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const addEmail = (email: string) => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) return;
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setInvalidEmail(trimmedEmail);
+      return;
+    }
+
+    if (emails.includes(trimmedEmail)) {
+      setInvalidEmail(trimmedEmail);
+      return;
+    }
+
+    setEmails([...emails, trimmedEmail]);
+    setInvalidEmail(null);
+    setInput('');
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addEmail(input);
+    }
+  };
+
+  const removeEmail = (emailToRemove: string) => {
+    setEmails(emails.filter(email => email !== emailToRemove));
+  };
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2 bg-gray-200 border border-gray-300 rounded-md px-3 py-2 text-sm placeholder-gray-500 focus-within:border-gray-400 focus-within:ring-gray-400">
+        {emails.map((email) => (
+          <span
+            key={email}
+            className="flex items-center bg-gray-300 text-black px-3 py-1 rounded-md shadow text-sm"
+          >
+            {email}
+            <X
+              className="ml-1 h-4 w-4 cursor-pointer text-gray-500 hover:text-gray-700"
+              onClick={() => removeEmail(email)}
+            />
+          </span>
+        ))}
+
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder="Optional: Add attendee emails"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="bg-transparent flex-grow text-black placeholder-gray-500 focus:outline-none text-sm"
+          aria-label="Add attendee emails"
+        />
+      </div>
+  
+      {/* Error Message */}
+      {invalidEmail && (
+        <p className="text-red-500 text-sm mt-2">
+          Invalid or duplicate email: {invalidEmail}
+        </p>
+      )}
+    </div>
+  );
+};
+
+function JoinMeetingForm() {
+  const { toast } = useToast();
+
   const [isMobile, setIsMobile] = useState(false);
   const [meetingIdCopied, setMeetingIdCopied] = useState(false);
-  const [name, setName] = useState('');
-  const [meetingId, setMeetingId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
   // Media states
@@ -20,6 +117,24 @@ export default function JoinMeeting() {
   const [isVideoEnabled, setIsVideoEnabled] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const router = useRouter();
+
+  const { register, handleSubmit, control, watch, setValue, formState: { errors } } = useForm<FormData>({
+    defaultValues: {
+      meetingId: '',
+      name: '',
+      title: '',
+      description: '',
+      dateTime: null,
+    },
+  });
+
+  const meetingId = watch('meetingId');
+
+  // State to handle emails
+  const [emails, setEmails] = useState<string[]>([]);
+
+  // State to handle which tab is active
+  const [activeTab, setActiveTab] = useState<'immediate' | 'scheduled'>('immediate');
 
   useEffect(() => {
     const checkMobile = () => {
@@ -32,6 +147,11 @@ export default function JoinMeeting() {
 
   // Initialize camera/microphone
   useEffect(() => {
+    if (isMobile) {
+      setStream(null);
+      return;
+    }
+
     async function initializeMedia() {
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -48,6 +168,11 @@ export default function JoinMeeting() {
         }
       } catch (error) {
         console.error('Error accessing media devices:', error);
+        toast({
+          title: 'Media Access Error',
+          description: 'Unable to access camera and/or microphone.',
+          variant: 'destructive',
+        });
       }
     }
 
@@ -59,7 +184,7 @@ export default function JoinMeeting() {
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, []);
+  }, [isMobile, toast]); // Removed 'stream' from dependencies to prevent re-initialization
 
   const toggleVideo = () => {
     if (stream) {
@@ -83,141 +208,313 @@ export default function JoinMeeting() {
 
   const handleCreateMeeting = () => {
     const newMeetingId = crypto.randomUUID();
-    setMeetingId(newMeetingId);
+    setValue('meetingId', newMeetingId);
     setMeetingIdCopied(false);
   };
 
   const handleCopyMeetingId = async () => {
-    await navigator.clipboard.writeText(meetingId);
-    setMeetingIdCopied(true);
-    setTimeout(() => setMeetingIdCopied(false), 2000);
+    if (meetingId) {
+      await navigator.clipboard.writeText(meetingId);
+      setMeetingIdCopied(true);
+      setTimeout(() => setMeetingIdCopied(false), 2000);
+      toast({
+        title: 'Meeting ID Copied',
+        description: 'The meeting ID has been copied to your clipboard.',
+        variant: 'default',
+      });
+    }
   };
 
-  const handleJoin = async () => {
-    if (!name.trim() || !meetingId.trim()) return;
+  const handleInviteAttendees = async () => {
+    if (emails.length === 0) {
+      toast({
+        title: 'No Emails Provided',
+        description: 'Please add at least one attendee email.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    try {
+      // Replace with actual API call to send invitations
+      // Example:
+      /*
+      const response = await fetch('/api/send-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          meetingId,
+          title: watch('title'),
+          description: watch('description'),
+          dateTime: watch('dateTime'),
+          attendees: emails,
+          inviteLink,
+        }),
+      });
+      if (!response.ok) throw new Error('Failed to send invitations.');
+      */
+
+      // Placeholder success
+      console.log('Inviting Attendees:', emails);
+      toast({
+        title: 'Invitations Sent',
+        description: 'Invitation emails have been sent successfully!',
+        variant: 'default',
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: 'Error',
+        description: 'There was an error sending the invitations.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const onSubmit = async (data: FormData) => {
+    if (!data.name.trim() || !data.meetingId.trim()) return;
+    if (activeTab === 'scheduled' && !data.dateTime) {
+      toast({
+        title: 'Date & Time Required',
+        description: 'Please select a date and time for the scheduled meeting.',
+        variant: 'destructive',
+      });
+      return;
+    }
     
     setIsLoading(true);
     try {
       const userId = crypto.randomUUID();
       
       // Store all necessary information
-      localStorage.setItem('userName', name);
+      localStorage.setItem('userName', data.name);
       localStorage.setItem('userId', userId);
-      localStorage.setItem('meetingId', meetingId);
+      localStorage.setItem('meetingId', data.meetingId);
       localStorage.setItem('isAudioEnabled', String(isAudioEnabled));
       localStorage.setItem('isVideoEnabled', String(isVideoEnabled));
+      localStorage.setItem('meetingTitle', data.title);
+      localStorage.setItem('meetingDescription', data.description);
+      localStorage.setItem('meetingDateTime', data.dateTime?.toISOString() || '');
+      localStorage.setItem('meetingType', activeTab); // To differentiate meeting types
       
-      router.push(`/meeting/${meetingId}`);
+      router.push(`/meeting/${data.meetingId}`);
     } catch (error) {
       console.error('Failed to join meeting:', error);
       setIsLoading(false);
+      toast({
+        title: 'Error',
+        description: 'There was an error joining the meeting.',
+        variant: 'destructive',
+      });
     }
   };
   
+  // Generate Invite Link
+  const inviteLink = `${window.location.origin}/meeting/${meetingId}`;
+
   return (
-    <div className="flex h-screen bg-gradient-to-br from-gray-800 to-gray-900 text-white overflow-hidden">
-      {/* Video Preview Section */}
+    <div className="relative w-full h-full">
+      {/* Video Background - Visible only on Desktop */}
       {!isMobile && (
-        <div className="flex-1 flex flex-col">
-          <div className="flex-1 relative">
-            {isVideoEnabled && stream ? (
-              <video
-                ref={videoRef}
-                className="absolute inset-0 w-full h-full object-cover"
-                autoPlay
-                muted
-                playsInline
-              />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-                <User className="h-32 w-32 text-gray-400" />
+        <>
+          <video
+            ref={videoRef}
+            className="fixed top-0 left-0 w-full h-full object-cover z-0"
+            autoPlay
+            muted
+            playsInline
+          />
+          {!isVideoEnabled && (
+            <div className="flex absolute inset-0 items-center justify-center bg-gray-800 bg-opacity-50 z-0">
+              <User className="h-32 w-32 text-gray-400" />
+            </div>
+          )}
+        </>
+      )}
+      
+      {/* Frosted Sidebar */}
+      <div className={cn(
+        "fixed top-0 right-0 h-full z-10 p-6",
+        "bg-white bg-opacity-20 backdrop-blur-md",
+        "w-full md:w-1/3", 
+        "overflow-auto flex justify-center items-center"
+      )}>
+        <div className="flex flex-col space-y-6 w-full max-w-md">
+          <h1 className="text-3xl font-bold text-gray-100 text-center">POLYGLOT BETA</h1>
+          
+          {/* Tabs for Meeting Creation Modes */}
+          <Tabs 
+            defaultValue="immediate" 
+            onValueChange={(value) => setActiveTab(value as 'immediate' | 'scheduled')}
+            className="mb-4"
+          >
+            <TabsList className="w-full">
+              <TabsTrigger value="immediate" className="w-1/2 font-normal">Start Meeting</TabsTrigger>
+              <TabsTrigger value="scheduled" className="w-1/2 font-normal">Schedule Meeting</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          
+          {/* Join/Create Meeting Form */}
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {/* Meeting ID Input with Icon */}
+            <div className="relative">
+              <div
+                className="bg-gray-200 border border-gray-300 text-sm text-black placeholder-gray-500 focus:border-gray-400 focus:ring-gray-400 pr-10 rounded-md px-3 py-2"
+                aria-label="Meeting ID"
+              >
+                {meetingId || <span className="text-gray-500">Create Meeting ID</span>}
+              </div>
+
+              {/* Action Button */}
+              <div
+                className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer"
+                onClick={meetingId ? handleCopyMeetingId : handleCreateMeeting}
+                title={meetingId ? 'Copy Meeting ID' : 'Create Meeting'}
+              >
+                {meetingId ? (
+                  meetingIdCopied ? (
+                    <Check className="h-5 w-5 text-green-500" />
+                  ) : (
+                    <Copy className="h-5 w-5 text-gray-500 hover:text-gray-700" />
+                  )
+                ) : (
+                  <Plus className="h-5 w-5 text-gray-500 hover:text-gray-700" />
+                )}
+              </div>
+            </div>
+
+            {errors.meetingId && <p className="text-red-500 text-sm">Meeting ID is required.</p>}
+
+            {activeTab === 'scheduled' && (
+              <div>
+                <Input
+                  type="text"
+                  placeholder="Meeting Title"
+                  {...register('title', { required: true })}
+                  className="bg-gray-200 border border-gray-300 text-black placeholder-gray-500 focus:border-gray-400 focus:ring-gray-400"
+                  aria-label="Meeting Title"
+                />
+                {errors.title && (
+                  <p className="text-red-500 text-sm">Meeting title is required.</p>
+                )}
               </div>
             )}
-            <div className="absolute bottom-6 left-6 flex space-x-4">
-              <Button
-                variant={isAudioEnabled ? 'default' : 'secondary'}
-                size="icon"
-                className="rounded-full"
-                onClick={toggleAudio}
-                aria-label={isAudioEnabled ? 'Mute audio' : 'Unmute audio'}
-              >
-                {isAudioEnabled ? <Mic className="h-6 w-6" /> : <MicOff className="h-6 w-6" />}
-              </Button>
-              <Button
-                variant={isVideoEnabled ? 'default' : 'secondary'}
-                size="icon"
-                className="rounded-full"
-                onClick={toggleVideo}
-                aria-label={isVideoEnabled ? 'Turn off video' : 'Turn on video'}
-              >
-                {isVideoEnabled ? <Video className="h-6 w-6" /> : <VideoOff className="h-6 w-6" />}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Join Meeting Form */}
-      <div className={`${isMobile ? 'w-full' : 'w-96'} bg-gray-900 p-8 flex flex-col justify-center`}>
-        <h1 className="text-3xl font-bold mb-8 text-center">Welcome</h1>
-        <div className="space-y-4">
-          <Input
-            type="text"
-            placeholder="Enter Meeting ID"
-            value={meetingId}
-            onChange={(e) => setMeetingId(e.target.value)}
-            className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-gray-400 focus:ring-gray-400"
-          />
-          <div className="flex space-x-2">
-            {!meetingId && (
-              <Button
-                className="flex-1 bg-secondary text-secondary-foreground hover:bg-secondary/90"
-                size="lg"
-                onClick={handleCreateMeeting}
-              >
-                Create Meeting
-              </Button>
+
+            {activeTab === 'scheduled' && (
+              <Textarea
+                placeholder="Meeting Description"
+                {...register('description')}
+                className="bg-gray-200 border border-gray-300 text-black placeholder-gray-500 focus:border-gray-400 focus:ring-gray-400"
+                rows={3}
+                aria-label="Meeting Description"
+              />
             )}
-            {meetingId && (
-              <Button
-                className={`flex-1 transition-all duration-100 ${
-                  meetingIdCopied 
-                    ? "bg-green-500 text-white hover:bg-green-600" 
-                    : "bg-secondary text-secondary-foreground hover:bg-secondary/90"
-                }`}
-                size="lg"
-                onClick={handleCopyMeetingId}
-              >
-                {meetingIdCopied ? <Check className="h-5 w-5" /> : "Copy Meeting ID"}
-              </Button>
+
+            {/* Conditional DatePicker for Scheduled Meeting */}
+            {activeTab === 'scheduled' && (
+              <Controller
+                control={control}
+                name="dateTime"
+                rules={{ required: activeTab === 'scheduled' }}
+                render={({ field, fieldState }) => (
+                  <div className="relative">
+                    <DatePickerWithPresets
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                    {fieldState.error && (
+                      <p className="text-red-500 text-sm mt-1">Date and time are required for scheduled meetings.</p>
+                    )}
+                  </div>
+                )}
+              />
             )}
-          </div>
-          <Input
-            type="text"
-            placeholder="Enter your name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-gray-400 focus:ring-gray-400"
-          />
-          <Button
-            className="w-full bg-transparent text-white border border-white hover:border-gray-300 hover:text-gray-300"
-            size="lg"
-            disabled={!name.trim() || !meetingId.trim() || isLoading}
-            onClick={handleJoin}
-          >
-            {isLoading ? (
-              <span className="flex items-center">
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              </span>
-            ) : (
-              'Join Meeting'
-            )}
-          </Button>
+
+            {/* Invite Attendees */}
+            <EmailInput emails={emails} setEmails={setEmails} />
+
+            {/* Invite Button */}
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleInviteAttendees}
+              className="w-full flex items-center justify-center font-normal"
+              disabled={emails.length === 0}
+            >
+              <Mail className="h-5 w-5" />
+              <span>Invite Attendees</span>
+            </Button>
+
+            {/* Removed Invite Link Display Section */}
+
+            {/* User Name */}
+            <Input
+              type="text"
+              placeholder="Enter your name"
+              {...register('name', { required: true })}
+              className="bg-gray-200 border border-gray-300 text-black placeholder-gray-500 focus:border-gray-400 focus:ring-gray-400"
+              aria-label="Your Name"
+            />
+            {errors.name && <p className="text-red-500 text-sm">Your name is required.</p>}
+
+            {/* Join Meeting Button */}
+            <Button
+              type="submit"
+              variant="secondary"
+              className="w-full flex items-center justify-center font-normal"
+              disabled={
+                !watch('name').trim() ||
+                !watch('meetingId').trim() ||
+                (activeTab === 'scheduled' && !watch('dateTime')) ||
+                isLoading
+              }
+            >
+              {isLoading ? (
+                <span className="flex items-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </span>
+              ) : (
+                'Join Meeting'
+              )}
+            </Button>
+          </form>
         </div>
       </div>
+
+      {/* Media Controls - Positioned over the Video */}
+      {!isMobile && (
+        <div className="fixed bottom-6 left-6 flex space-x-4 z-10">
+          <Button
+            variant={isAudioEnabled ? 'default' : 'secondary'}
+            size="icon"
+            className="rounded-full bg-white bg-opacity-50 hover:bg-white"
+            onClick={toggleAudio}
+            aria-label={isAudioEnabled ? 'Mute audio' : 'Unmute audio'}
+          >
+            {isAudioEnabled ? <Mic className="h-6 w-6 text-black" /> : <MicOff className="h-6 w-6 text-black" />}
+          </Button>
+          <Button
+            variant={isVideoEnabled ? 'default' : 'secondary'}
+            size="icon"
+            className="rounded-full bg-white bg-opacity-50 hover:bg-white"
+            onClick={toggleVideo}
+            aria-label={isVideoEnabled ? 'Turn off video' : 'Turn on video'}
+          >
+            {isVideoEnabled ? <Video className="h-6 w-6 text-black" /> : <VideoOff className="h-6 w-6 text-black" />}
+          </Button>
+        </div>
+      )}
     </div>
+  );
+}
+
+export function JoinMeetingWrapper() {
+  return (
+    <ToastProvider>
+      <JoinMeetingForm />
+    </ToastProvider>
   );
 }

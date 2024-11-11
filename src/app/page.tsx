@@ -1,11 +1,11 @@
 // src/app/page.tsx
 import ClientOnly from "@/components/ClientOnly";
-import JoinMeeting from "../components/JoinMeeting";
+import { JoinMeetingWrapper } from "@/components/JoinMeeting";
 
 export default function JoinMeetingPage() {
   return (
     <ClientOnly>
-      <JoinMeeting />
+      <JoinMeetingWrapper />
     </ClientOnly>
   );
 }
