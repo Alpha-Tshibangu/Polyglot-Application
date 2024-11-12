@@ -84,16 +84,22 @@ const VideoContent = ({ call, onLeaveCall }: VideoContentProps) => {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         
         transcriptionService.current = new TranscriptionService();
-        await transcriptionService.current.start(stream, (message) => {
-          setShowTranscriptionDots(false);
-          setCurrentTranscription({
-            text: message.text,
-            speaker: message.speaker.name
-          });
-        });
-
+        await transcriptionService.current.start(
+          stream,
+          localParticipant?.sessionId || '',
+          (message) => {
+            console.log('Received transcription in VideoContent:', message);
+            setShowTranscriptionDots(false);
+            setCurrentTranscription({
+              text: message.text,
+              speaker: message.speaker.name
+            });
+          }
+        );
+  
         transcriptionService.current.updateParticipants(participants);
-
+        transcriptionService.current.setMuted(isMicMuted);
+  
       } catch (error) {
         console.error('Failed to start transcription:', error);
         setIsCaptionsOn(false);

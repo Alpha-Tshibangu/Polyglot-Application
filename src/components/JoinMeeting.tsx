@@ -85,7 +85,7 @@ const EmailInput: React.FC<{
         <input
           ref={inputRef}
           type="text"
-          placeholder="Optional: Add attendee emails"
+          placeholder="Optional: Add Attendee Emails"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -334,12 +334,18 @@ function JoinMeetingForm() {
       {/* Frosted Sidebar */}
       <div className={cn(
         "fixed top-0 right-0 h-full z-10 p-6",
-        "bg-white bg-opacity-20 backdrop-blur-md",
+        "bg-white bg-opacity-50 backdrop-blur-md",
         "w-full md:w-1/3", 
         "overflow-auto flex justify-center items-center"
       )}>
         <div className="flex flex-col space-y-6 w-full max-w-md">
-          <h1 className="text-3xl font-bold text-gray-100 text-center">POLYGLOT BETA</h1>
+          <h1
+            className={`text-3xl font-bold ${
+              isMobile ? "text-gray-300" : "text-gray-400"
+            } text-center`}
+          >
+            POLYGLOT BETA
+          </h1>
           
           {/* Tabs for Meeting Creation Modes */}
           <Tabs 
@@ -385,12 +391,12 @@ function JoinMeetingForm() {
             {errors.meetingId && <p className="text-red-500 text-sm">Meeting ID is required.</p>}
 
             {activeTab === 'scheduled' && (
-              <div>
-                <Input
+              <div className="flex flex-wrap items-center gap-2 bg-gray-200 border border-gray-300 rounded-md px-3 py-2 text-sm placeholder-gray-500 focus-within:border-gray-400 focus-within:ring-gray-400">
+                <input
                   type="text"
                   placeholder="Meeting Title"
                   {...register('title', { required: true })}
-                  className="bg-gray-200 border border-gray-300 text-black placeholder-gray-500 focus:border-gray-400 focus:ring-gray-400"
+                  className="bg-transparent flex-grow text-black placeholder-gray-500 focus:outline-none text-sm"
                   aria-label="Meeting Title"
                 />
                 {errors.title && (
@@ -448,13 +454,15 @@ function JoinMeetingForm() {
             {/* Removed Invite Link Display Section */}
 
             {/* User Name */}
-            <Input
-              type="text"
-              placeholder="Enter your name"
-              {...register('name', { required: true })}
-              className="bg-gray-200 border border-gray-300 text-black placeholder-gray-500 focus:border-gray-400 focus:ring-gray-400"
-              aria-label="Your Name"
-            />
+            <div className="flex flex-wrap items-center gap-2 bg-gray-200 border border-gray-300 rounded-md px-3 py-2 text-sm placeholder-gray-500 focus-within:border-gray-400 focus-within:ring-gray-400">
+              <input
+                type="text"
+                placeholder="Enter Your Name"
+                {...register('name', { required: true })}
+                className="bg-transparent flex-grow text-black placeholder-gray-500 focus:outline-none text-sm"
+                aria-label="Your Name"
+              />
+            </div>
             {errors.name && <p className="text-red-500 text-sm">Your name is required.</p>}
 
             {/* Join Meeting Button */}

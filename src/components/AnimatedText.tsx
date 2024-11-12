@@ -5,12 +5,13 @@ import React, { useState, useEffect, useRef } from 'react';
 interface AnimatedTextProps {
   text: string;
   speed?: number;
+  initialText?: string;
 }
 
-const AnimatedText = ({ text, speed = 30 }: AnimatedTextProps) => {
-  const [displayedText, setDisplayedText] = useState('');
-  const prevTextRef = useRef('');
-  const currentIndexRef = useRef(0);
+const AnimatedText = ({ text, speed = 30, initialText }: AnimatedTextProps) => {
+  const [displayedText, setDisplayedText] = useState(initialText || '');
+  const prevTextRef = useRef(initialText || '');
+  const currentIndexRef = useRef(initialText ? initialText.length : 0);
   const animationTimeoutRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {

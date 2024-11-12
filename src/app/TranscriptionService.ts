@@ -1,20 +1,21 @@
 import { StreamVideoParticipant } from '@stream-io/video-react-sdk';
 
-export type TranscriptionCallback = (message: { 
-  text: string; 
-  speaker: StreamVideoParticipant;
-}) => void;
-
 export class TranscriptionService {
   private ws: WebSocket | null = null;
   private mediaRecorder: MediaRecorder | null = null;
   private isActive = false;
   private participants = new Map<string, StreamVideoParticipant>();
-  private onTranscriptionCallback: TranscriptionCallback | null = null;
+  private onTranscriptionCallback: ((message: { text: string; speaker: StreamVideoParticipant }) => void) | null = null;
+  private localParticipantId: string | null = null;
+  private isMuted = false;
 
   constructor(private language: string = 'en-US') {}
 
-  public async start(audioStream: MediaStream, onTranscription: TranscriptionCallback) {
+  public async start(
+    audioStream: MediaStream, 
+    localParticipantId: string,
+    onTranscription: (message: { text: string; speaker: StreamVideoParticipant }) => void
+  ) {
     if (this.isActive) return;
     
     if (!MediaRecorder.isTypeSupported('audio/webm')) {
@@ -23,6 +24,7 @@ export class TranscriptionService {
 
     this.isActive = true;
     this.onTranscriptionCallback = onTranscription;
+    this.localParticipantId = localParticipantId;
     
     try {
       await this.setupWebSocket();
@@ -40,7 +42,9 @@ export class TranscriptionService {
     });
 
     this.mediaRecorder.addEventListener('dataavailable', async (event) => {
-      if (event.data.size > 0 && this.ws?.readyState === WebSocket.OPEN) {
+      if (event.data.size > 0 && 
+          this.ws?.readyState === WebSocket.OPEN && 
+          !this.isMuted) {  // Only send audio data if not muted
         this.ws.send(event.data);
       }
     });
@@ -71,16 +75,24 @@ export class TranscriptionService {
           const transcript = received.channel.alternatives[0].transcript;
           
           if (transcript && received.is_final) {
-            console.log('Transcription received:', transcript);
+            console.log('Raw transcription:', transcript);
             
             // Get the currently speaking participant or fallback to first participant
             const speaker = Array.from(this.participants.values()).find(p => p.isSpeaking) 
               || Array.from(this.participants.values())[0];
-
+    
+            console.log('Selected speaker:', speaker?.name);
+    
             if (this.onTranscriptionCallback && speaker) {
+              console.log('Calling callback with:', { text: transcript, speaker: speaker.name });
               this.onTranscriptionCallback({
                 text: transcript,
                 speaker
+              });
+            } else {
+              console.log('No callback or speaker found:', {
+                hasCallback: !!this.onTranscriptionCallback,
+                hasSpeaker: !!speaker
               });
             }
           }
@@ -101,9 +113,20 @@ export class TranscriptionService {
     });
   }
 
+  public setMuted(muted: boolean) {
+    this.isMuted = muted;
+  }
+
   public updateParticipants(participants: StreamVideoParticipant[]) {
     this.participants.clear();
     for (const participant of participants) {
+      // Don't include muted participants in speaker selection
+      if (participant.sessionId === this.localParticipantId && this.isMuted) {
+        continue;
+      }
+      if (participant.isMuted) {
+        continue;
+      }
       this.participants.set(participant.sessionId, participant);
     }
   }

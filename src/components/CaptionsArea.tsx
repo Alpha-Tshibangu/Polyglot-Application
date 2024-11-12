@@ -27,7 +27,7 @@ const CaptionsArea = ({
 
       return () => clearTimeout(timer);
     }
-  }, [text]);
+  }, [text, isCaptionsOn, showEllipsis]);
 
   if (!isCaptionsOn) return null;
 
@@ -37,7 +37,11 @@ const CaptionsArea = ({
         <div className="font-bold">{speaker}</div>
       )}
       <div className="text-base">
-        {showEllipsis || !showText ? <AnimatedText text={'...'} speed={150} /> : <AnimatedText text={text} speed={30} />}
+        {showEllipsis || !showText ? (
+          <AnimatedText text={'...'} speed={300} initialText="..." />
+        ) : (
+          <AnimatedText text={text} speed={30} />
+        )}
       </div>
     </div>
   );
