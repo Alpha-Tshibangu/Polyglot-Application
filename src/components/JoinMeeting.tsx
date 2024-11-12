@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { DatePickerWithPresets } from './date-picker';
 import { ToastProvider } from "@/components/ui/toast";
 import { useToast } from '@/hooks/use-toast';
+import JoinMeetingLoad from './JoingMeetingLoad';
 
 type FormData = {
   meetingId: string;
@@ -110,6 +111,7 @@ function JoinMeetingForm() {
   const [isMobile, setIsMobile] = useState(false);
   const [meetingIdCopied, setMeetingIdCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isMediaInitializing, setIsMediaInitializing] = useState(true);
   
   // Media states
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -139,23 +141,13 @@ function JoinMeetingForm() {
     }
   }, [searchParams, setValue]);
 
-  // Mobile check
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  // Media initialization
   useEffect(() => {
     if (isMobile) {
       setStream(null);
+      setIsMediaInitializing(false);
       return;
     }
-
+  
     async function initializeMedia() {
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -164,14 +156,17 @@ function JoinMeetingForm() {
         });
         
         setStream(mediaStream);
-        setIsVideoEnabled(true);
-        setIsAudioEnabled(true);
-        
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream;
         }
+        // Set video and audio enabled after stream is ready
+        setIsVideoEnabled(true);
+        setIsAudioEnabled(true);
+        setIsMediaInitializing(false);
+        
       } catch (error) {
         console.error('Error accessing media devices:', error);
+        setIsMediaInitializing(false);
         toast({
           title: 'Media Access Error',
           description: 'Unable to access camera and/or microphone.',
@@ -179,9 +174,9 @@ function JoinMeetingForm() {
         });
       }
     }
-
+  
     initializeMedia();
-
+  
     return () => {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
@@ -310,14 +305,15 @@ function JoinMeetingForm() {
             muted
             playsInline
           />
-          {!isVideoEnabled && (
-            <div className="flex absolute inset-0 items-center justify-center bg-gray-800 bg-opacity-50 z-0">
-              <User className="h-32 w-32 text-gray-400" />
-            </div>
+          {(isMediaInitializing || !isVideoEnabled) && (
+            <JoinMeetingLoad />
           )}
         </>
       )}
       
+      {isMediaInitializing ? (
+        <JoinMeetingLoad />
+      ) : (
       <div className={cn(
         "fixed top-0 right-0 h-full z-10 p-6",
         "bg-white bg-opacity-50 backdrop-blur-md",
@@ -402,7 +398,7 @@ function JoinMeetingForm() {
                       {fieldState.error && (
                         <p className="text-red-500 text-sm mt-1">Date and time are required for scheduled meetings.</p>
                       )}
-</div>
+                    </div>
                   )}
                 />
               </>
@@ -458,8 +454,9 @@ function JoinMeetingForm() {
           </form>
         </div>
       </div>
+      )}
 
-      {!isMobile && (
+      {!isMobile && !isMediaInitializing && (
         <div className="fixed bottom-6 left-6 flex space-x-4 z-10">
           <Button
             variant={isAudioEnabled ? 'default' : 'secondary'}
@@ -481,7 +478,7 @@ function JoinMeetingForm() {
           </Button>
         </div>
       )}
-    </div>
+    </div> 
   );
 }
 

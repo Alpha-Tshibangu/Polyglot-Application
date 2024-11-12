@@ -22,10 +22,12 @@ const VideoCall: React.FC<VideoCallProps> = ({ meetingId }) => {
   const [client, setClient] = useState<StreamVideoClient | null>(null);
   const [call, setCall] = useState<Call | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isMediaLoading, setIsMediaLoading] = useState(true);
 
   useEffect(() => {
     const userId = localStorage.getItem('userId');
     const userName = localStorage.getItem('userName');
+    const isVideoEnabled = localStorage.getItem('isVideoEnabled') === 'true';
 
     if (!userName || !userId) {
       console.log('Missing user info, redirecting to join page');
@@ -41,7 +43,6 @@ const VideoCall: React.FC<VideoCallProps> = ({ meetingId }) => {
 
         const token = await getToken(userId);
 
-        // Use getOrCreateInstance to prevent multiple clients
         const streamClient = StreamVideoClient.getOrCreateInstance({
           apiKey: API_KEY,
           user: {
@@ -54,13 +55,25 @@ const VideoCall: React.FC<VideoCallProps> = ({ meetingId }) => {
         if (cleanup) return;
         setClient(streamClient);
 
+        // Wait for camera to initialize before showing the call
         const streamCall = streamClient.call('default', meetingId);
-        await streamCall.join({ create: true });
+        await streamCall.join({ 
+          create: true,
+          camera: isVideoEnabled,
+        });
+        
+        // Wait a bit for the camera to fully initialize
+        if (isVideoEnabled) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
 
         if (cleanup) return;
         setCall(streamCall);
+        setIsMediaLoading(false);
+
       } catch (error) {
         console.error('Failed to initialize call:', error);
+        setIsMediaLoading(false);
         if (!cleanup) {
           setError('Failed to join the meeting. Please try again.');
           setTimeout(() => router.push('/meeting'), 3000);
@@ -89,10 +102,8 @@ const VideoCall: React.FC<VideoCallProps> = ({ meetingId }) => {
     );
   }  
 
-  if (!client || !call) {
-    return (
-      <JoinMeetingLoad />
-    );
+  if (!client || !call || isMediaLoading) {
+    return <JoinMeetingLoad />;
   }  
 
   return (

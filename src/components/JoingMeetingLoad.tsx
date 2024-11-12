@@ -1,6 +1,10 @@
 import React from 'react'
 
-export default function JoinMeetingLoad() {
+interface JoinMeetingLoadProps {
+  text?: string;
+}
+
+export default function JoinMeetingLoad({ text = 'POLYGLOT' }: JoinMeetingLoadProps) {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-white min-h-screen">
       <h1 
@@ -13,7 +17,7 @@ export default function JoinMeetingLoad() {
           animation: 'gradient 5s ease infinite',
         }}
       >
-        POLYGLOT
+        {text}
       </h1>
       <style jsx>{`
         @keyframes gradient {
