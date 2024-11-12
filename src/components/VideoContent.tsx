@@ -1,3 +1,5 @@
+// src/components/VideoContent.tsx
+
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -23,6 +25,14 @@ import { RemoteParticipants } from './RemoteParticipants';
 import FloatingToolbar from './FloatingToolbar';
 import CaptionsArea from './CaptionsArea';
 import { TranscriptionService } from '../app/TranscriptionService';
+import { TranslationService } from '@/app/TranslationService';
+import { AudioPlayer } from '@/app/AudioPlayer';
+
+interface TranslationState {
+  isActive: boolean;
+  sourceLanguage: string;
+  targetLanguage: string;
+}
 
 const VideoContent = ({ call, onLeaveCall }: VideoContentProps) => {
   const {
@@ -54,6 +64,15 @@ const VideoContent = ({ call, onLeaveCall }: VideoContentProps) => {
     speaker: string | undefined;
   } | null>(null);
   const transcriptionService = useRef<TranscriptionService | null>(null);
+
+  // Translation state
+  const [translationState, setTranslationState] = useState<TranslationState>({
+    isActive: false,
+    sourceLanguage: 'eng',
+    targetLanguage: 'fra'
+  });
+  const translationService = useRef<TranslationService | null>(null);
+  const audioPlayer = useRef<AudioPlayer | null>(null);
 
   // Participant State
   const isSingleParticipant = participants.length === 1;
@@ -207,6 +226,116 @@ const VideoContent = ({ call, onLeaveCall }: VideoContentProps) => {
     }
   };
 
+  // Simplify the translation toggle handler
+  const handleTranslationToggle = (isEnabled: boolean) => {
+    setTranslationState(prev => ({ ...prev, isActive: isEnabled }));
+  };
+
+  // Handle language changes
+  const handleSourceLanguageChange = (language: string) => {
+    setTranslationState(prev => ({ ...prev, sourceLanguage: language }));
+  };
+
+  const handleTargetLanguageChange = (language: string) => {
+    setTranslationState(prev => ({ ...prev, targetLanguage: language }));
+  };
+
+  // Keep this effect as the main translation service manager
+  useEffect(() => {
+    const setupTranslation = async () => {
+      if (translationState.isActive) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          
+          audioPlayer.current = new AudioPlayer();
+          
+          translationService.current = new TranslationService(
+            translationState.targetLanguage,
+            (translatedAudio, speaker) => {
+              console.log('Received translated audio for:', speaker.name);
+              audioPlayer.current?.playAudio(translatedAudio, speaker);
+            }
+          );
+
+          await translationService.current.start(
+            stream,
+            localParticipant?.sessionId || '',
+            isMicMuted
+          );
+
+          translationService.current.updateParticipants(participants);
+
+        } catch (error) {
+          console.error('Failed to start translation:', error);
+          setTranslationState(prev => ({ ...prev, isActive: false }));
+          
+          if (translationService.current) {
+            translationService.current.stop();
+            translationService.current = null;
+          }
+          if (audioPlayer.current) {
+            audioPlayer.current.stop();
+            audioPlayer.current = null;
+          }
+        }
+      } else {
+        if (translationService.current) {
+          translationService.current.stop();
+          translationService.current = null;
+        }
+        if (audioPlayer.current) {
+          audioPlayer.current.stop();
+          audioPlayer.current = null;
+        }
+      }
+    };
+
+    setupTranslation();
+  }, [translationState.isActive, localParticipant?.sessionId]);
+
+  // This effect handles language changes
+  useEffect(() => {
+    if (translationState.isActive && translationService.current) {
+      translationService.current.stop();
+      setTranslationState(prev => ({ ...prev, isActive: false }));
+      setTimeout(() => setTranslationState(prev => ({ ...prev, isActive: true })), 100);
+    }
+  }, [translationState.targetLanguage]);
+
+  // Update participants when they change
+  useEffect(() => {
+    if (translationService.current && translationState.isActive) {
+        const remoteParticipants = participants.filter(p => p.sessionId !== localParticipant?.sessionId);
+        console.log('Updating translation service with participants:', {
+            total: participants.length,
+            remote: remoteParticipants.length,
+            localId: localParticipant?.sessionId
+        });
+        translationService.current.updateParticipants(participants);
+    }
+  }, [participants, translationState.isActive, localParticipant?.sessionId]);
+
+  // Update mute state
+  useEffect(() => {
+    if (translationService.current) {
+      translationService.current.setMuted(isMicMuted);
+    }
+  }, [isMicMuted]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (translationService.current) {
+        translationService.current.stop();
+        translationService.current = null;
+      }
+      if (audioPlayer.current) {
+        audioPlayer.current.stop();
+        audioPlayer.current = null;
+      }
+    };
+  }, []);
+
   return (
     <div className="flex flex-col h-full w-full bg-black">
       <div className="relative flex flex-col h-full w-full">
@@ -252,18 +381,13 @@ const VideoContent = ({ call, onLeaveCall }: VideoContentProps) => {
         handleToggleVideo={handleToggleCamera}
         isCaptionsOn={isCaptionsOn}
         setIsCaptionsOn={handleCaptionToggle}
-        isAudioTranslationOn={false}
-        setIsAudioTranslationOn={() => {}}
-        spokenLanguage="en"
-        setSpokenLanguage={() => {}}
-        captionLanguage="en"
-        setCaptionLanguage={() => {}}
-        audioTranslationLanguage="en"
-        setAudioTranslationLanguage={() => {}}
-        callAccepted={true}
-        callEnded={false}
+        isTranslationOn={translationState.isActive}
+        setIsTranslationOn={handleTranslationToggle} 
+        sourceLanguage={translationState.sourceLanguage}
+        setSourceLanguage={handleSourceLanguageChange}
+        targetLanguage={translationState.targetLanguage}
+        setTargetLanguage={handleTargetLanguageChange}
         leaveCall={onLeaveCall}
-        participantCount={participants.length}
       />
     </div>
   );
