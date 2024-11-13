@@ -88,7 +88,7 @@ export class TranslationService {
       formData.append('tgt_lang', this.targetLanguage);
       formData.append('output_file', `output_${crypto.randomUUID()}.wav`);
 
-      const serverUrl = `${process.env.NEXT_PUBLIC_TRANSLATION_SERVER_ADDRESS}:5000/predict`;
+      const serverUrl = `${process.env.NEXT_PUBLIC_TRANSLATION_SERVER_ADDRESS}/predict`;
       console.log('Translation request details:', {
         url: serverUrl,
         targetLanguage: this.targetLanguage,
