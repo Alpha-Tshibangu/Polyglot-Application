@@ -12,7 +12,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from './ui/DropdownMenu';
+} from './ui/dropdown-menu';
 import {
   Select,
   SelectContent,
@@ -35,6 +35,8 @@ interface FloatingToolbarProps {
   setSourceLanguage: (language: string) => void;
   targetLanguage: string;
   setTargetLanguage: (language: string) => void;
+  captionLanguage: string;
+  setCaptionLanguage: (language: string) => void;
   leaveCall: () => void;
 }
 

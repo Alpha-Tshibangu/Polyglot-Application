@@ -3,7 +3,7 @@
 
 import { StreamClient } from "@stream-io/node-sdk";
 
-export async function getToken(userId: string) {
+export async function getToken(userId: string): Promise<string> {
   const streamApiKey = process.env.NEXT_PUBLIC_STREAM_VIDEO_API_KEY;
   const streamApiSecret = process.env.STREAM_VIDEO_API_SECRET;
 

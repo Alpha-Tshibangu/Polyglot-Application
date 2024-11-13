@@ -14,7 +14,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Input } from "@/components/ui/input";
 
 interface DatePickerWithPresetsProps {
   value: Date | undefined;
@@ -97,7 +96,7 @@ export function DatePickerWithPresets({ value, onChange }: DatePickerWithPresets
             mode="single"
             selected={selectedDate}
             onSelect={setSelectedDate}
-            className="bg-gray-800 text-white"
+            className="bg-white text-gray-800"
           />
         </div>
 
@@ -129,7 +128,7 @@ function generateTimeOptions(): string[] {
   const times: string[] = [];
   const periods = ["AM", "PM"];
 
-  for (let period of periods) {
+  for (const period of periods) {
     for (let hour = 1; hour <= 12; hour++) {
       for (let minute = 0; minute < 60; minute += 30) {
         const minuteStr = minute === 0 ? "00" : "30";

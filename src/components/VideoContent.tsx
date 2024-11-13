@@ -37,16 +37,15 @@ interface TranslationState {
 const VideoContent = ({ call, onLeaveCall }: VideoContentProps) => {
   const {
     useParticipants,
-    useDominantSpeaker,
+    // useDominantSpeaker,
     useLocalParticipant,
-    useCallSettings,
     useCameraState,
     useMicrophoneState,
   } = useCallStateHooks();
 
   const participants = useParticipants();
   const localParticipant = useLocalParticipant();
-  const dominantSpeakerParticipant = useDominantSpeaker();
+  // const dominantSpeakerParticipant = useDominantSpeaker();
   const { camera, isMute: isCameraMuted } = useCameraState();
   const { microphone, isMute: isMicMuted } = useMicrophoneState();
   
@@ -82,13 +81,21 @@ const VideoContent = ({ call, onLeaveCall }: VideoContentProps) => {
     : [];
   const showLocalThumbnail = hasRemoteParticipants;
 
+  // Caption Language
+  const [captionLanguage, setCaptionLanguage] = useState<string>('eng');
+
   // Initialize styles
   useEffect(() => {
+    // Create a <style> element
     const style = document.createElement('style');
     style.textContent = thumbnailStyles;
     document.head.appendChild(style);
-    return () => document.head.removeChild(style);
-  }, []);
+  
+    // Cleanup function to remove the <style> element
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);  
 
   // Handle caption toggle
   const handleCaptionToggle = async () => {
@@ -205,9 +212,9 @@ const VideoContent = ({ call, onLeaveCall }: VideoContentProps) => {
   const handleToggleMicrophone = async () => {
     try {
       if (isMicMuted) {
-        await call.microphone.enable();
+        await microphone.enable();
       } else {
-        await call.microphone.disable();
+        await microphone.disable();
       }
     } catch (error) {
       console.error('Failed to toggle microphone:', error);
@@ -217,9 +224,9 @@ const VideoContent = ({ call, onLeaveCall }: VideoContentProps) => {
   const handleToggleCamera = async () => {
     try {
       if (isCameraMuted) {
-        await call.camera.enable();
+        await camera.enable();
       } else {
-        await call.camera.disable();
+        await camera.disable();
       }
     } catch (error) {
       console.error('Failed to toggle camera:', error);
@@ -387,6 +394,8 @@ const VideoContent = ({ call, onLeaveCall }: VideoContentProps) => {
         setSourceLanguage={handleSourceLanguageChange}
         targetLanguage={translationState.targetLanguage}
         setTargetLanguage={handleTargetLanguageChange}
+        captionLanguage={captionLanguage}
+        setCaptionLanguage={setCaptionLanguage}
         leaveCall={onLeaveCall}
       />
     </div>

@@ -25,7 +25,7 @@ interface VoiceDetectionConfig {
       try {
         console.log('Initializing voice detection service...');
   
-        this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        this.audioContext = new window.AudioContext();
         this.sourceNode = this.audioContext.createMediaStreamSource(audioStream);
         
         this.analyser = this.audioContext.createAnalyser();

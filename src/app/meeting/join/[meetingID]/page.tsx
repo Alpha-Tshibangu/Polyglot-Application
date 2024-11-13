@@ -1,22 +1,17 @@
-// src/app/meeting/join/[meetingId]/page.tsx
+// src/app/meeting/join/[meetingID]/page.tsx
 "use client";
 
 import React, { useEffect } from 'react';
-import { useRouter } from 'next/router';
-import JoinMeetingLoad from '../../../../components/JoingMeetingLoad'
+import { useRouter, useParams } from 'next/navigation';
+import JoinMeetingLoad from '@/components/JoinMeetingLoad';
 
-export default function MeetingRedirect({ params }: { params: { meetingId: string } }) {
+export default function MeetingRedirect() {
+  const params = useParams();
   const router = useRouter();
   
-  // Use useEffect for client-side redirect
   useEffect(() => {
-    router.replace(`/meeting?id=${params.meetingId}`);
-  }, [params.meetingId, router]);
+    router.replace(`/meeting?id=${params.meetingID}`);
+  }, [params.meetingID, router]);
 
-  // Return loading state while redirect happens
-  return (
-    <div className="h-screen w-screen flex items-center justify-center">
-      <JoinMeetingLoad />
-    </div>
-  );
+  return <JoinMeetingLoad />;
 }

@@ -64,7 +64,7 @@ function useInitializeVideoClient() {
     const client = new StreamVideoClient({
       apiKey,
       user: streamUser,
-      tokenProvider: user?.id ? getToken : undefined,
+      tokenProvider: user?.id ? () => getToken(user.id) : undefined,
     });
 
     setVideoClient(client);

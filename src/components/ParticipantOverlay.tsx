@@ -1,5 +1,5 @@
 import React from 'react';
-import { StreamVideoParticipant, useCallStateHooks } from '@stream-io/video-react-sdk';
+import { StreamVideoParticipant, useCallStateHooks, hasAudio, hasVideo } from '@stream-io/video-react-sdk';
 import { MicOff, VideoOff } from 'lucide-react';
 
 interface ParticipantOverlayProps {
@@ -16,8 +16,8 @@ export const ParticipantOverlay: React.FC<ParticipantOverlayProps> = ({
   const { isMute: isCameraMuted } = useCameraState();
 
   // Use local state for local participant, otherwise use participant state
-  const isAudioMuted = isLocal ? isMicMuted : participant.isMuted;
-  const isVideoMuted = isLocal ? isCameraMuted : !participant.publishingVideo;
+  const isAudioMuted = isLocal ? isMicMuted : !hasAudio(participant);
+  const isVideoMuted = isLocal ? isCameraMuted : !hasVideo(participant);
 
   const hasIndicators = isAudioMuted || isVideoMuted;
 

@@ -9,7 +9,7 @@ import {
 } from '@stream-io/video-react-sdk';
 import { getToken } from '@/app/actions';
 import VideoContent from './VideoContent';
-import JoinMeetingLoad from './JoingMeetingLoad';
+import JoinMeetingLoad from './JoinMeetingLoad';
 
 const API_KEY = process.env.NEXT_PUBLIC_STREAM_VIDEO_API_KEY!;
 
@@ -24,6 +24,16 @@ const VideoCall: React.FC<VideoCallProps> = ({ meetingId }) => {
   const [error, setError] = useState<string | null>(null);
   const [isMediaLoading, setIsMediaLoading] = useState(true);
 
+  const handleLeaveCall = async () => {
+    if (call) {
+      await call.leave();
+    }
+    if (client) {
+      await client.disconnectUser();
+    }
+    router.push('/meeting');
+  };  
+
   useEffect(() => {
     const userId = localStorage.getItem('userId');
     const userName = localStorage.getItem('userName');
@@ -31,7 +41,7 @@ const VideoCall: React.FC<VideoCallProps> = ({ meetingId }) => {
 
     if (!userName || !userId) {
       console.log('Missing user info, redirecting to join page');
-      router.push('/meeting');
+      router.replace(`/meeting/join/${meetingId}`);
       return;
     }
 
@@ -55,16 +65,13 @@ const VideoCall: React.FC<VideoCallProps> = ({ meetingId }) => {
         if (cleanup) return;
         setClient(streamClient);
 
-        // Wait for camera to initialize before showing the call
         const streamCall = streamClient.call('default', meetingId);
-        await streamCall.join({ 
-          create: true,
-          camera: isVideoEnabled,
-        });
-        
-        // Wait a bit for the camera to fully initialize
+        await streamCall.join({ create: true });
+
         if (isVideoEnabled) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await streamCall.camera.enable();
+        } else {
+          await streamCall.camera.disable();
         }
 
         if (cleanup) return;
@@ -100,16 +107,16 @@ const VideoCall: React.FC<VideoCallProps> = ({ meetingId }) => {
         <div className="text-white text-xl">{error}</div>
       </div>
     );
-  }  
+  }
 
   if (!client || !call || isMediaLoading) {
     return <JoinMeetingLoad />;
-  }  
+  }
 
   return (
     <StreamVideo client={client}>
       <StreamCall call={call}>
-        <VideoContent call={call} />
+        <VideoContent call={call} onLeaveCall={handleLeaveCall} />
       </StreamCall>
     </StreamVideo>
   );

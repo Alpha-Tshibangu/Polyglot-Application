@@ -1,10 +1,6 @@
 import React from 'react';
 import { StreamVideoParticipant } from '@stream-io/video-react-sdk';
 
-interface CustomVideoPlaceholderProps {
-  participant: StreamVideoParticipant;
-}
-
 export const CustomVideoPlaceholder = ({ participant }: { participant: StreamVideoParticipant }) => {
   const initial = (participant.name?.[0] || 'A').toUpperCase();
   

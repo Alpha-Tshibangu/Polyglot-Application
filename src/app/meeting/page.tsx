@@ -3,10 +3,11 @@
 
 import dynamic from 'next/dynamic';
 
-// Dynamically import the JoinMeeting component to avoid SSR issues
-const JoinMeeting = dynamic(() => import('../../components/JoinMeeting'), {
-  ssr: false,
-});
+// Dynamically import the JoinMeeting component
+const JoinMeeting = dynamic(() =>
+  import('@/components/JoinMeeting').then((mod) => mod.JoinMeetingWrapper),
+  { ssr: false }
+);
 
 export default function MeetingLobbyPage() {
   return <JoinMeeting />;

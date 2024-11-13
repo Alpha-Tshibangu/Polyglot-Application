@@ -1,4 +1,4 @@
-import { StreamVideoParticipant } from '@stream-io/video-react-sdk';
+import { StreamVideoParticipant, hasAudio } from '@stream-io/video-react-sdk';
 
 export class TranscriptionService {
   private ws: WebSocket | null = null;
@@ -124,9 +124,9 @@ export class TranscriptionService {
       if (participant.sessionId === this.localParticipantId && this.isMuted) {
         continue;
       }
-      if (participant.isMuted) {
+      if (!hasAudio(participant)) {
         continue;
-      }
+      }      
       this.participants.set(participant.sessionId, participant);
     }
   }

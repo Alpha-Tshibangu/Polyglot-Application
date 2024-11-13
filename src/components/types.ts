@@ -4,6 +4,7 @@ import { Call, StreamVideoParticipant } from '@stream-io/video-react-sdk';
 
 export interface VideoContentProps {
   call: Call;
+  onLeaveCall: () => void;
 }
 
 export interface Position {

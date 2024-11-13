@@ -194,7 +194,7 @@ export class AudioPlayer {
       setTimeout(() => {
         try {
           source.stop();
-        } catch (error) {
+        } finally {
           // Ignore errors if source is already stopped
         }
         source.disconnect();

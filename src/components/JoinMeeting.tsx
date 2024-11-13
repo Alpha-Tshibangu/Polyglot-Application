@@ -4,10 +4,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { 
-  Mic, MicOff, Video, VideoOff, User, Check, Copy, Plus, Mail, X 
+  Mic, MicOff, Video, VideoOff, Check, Copy, Plus, Mail, X 
 } from 'lucide-react';
 import { useForm, Controller } from 'react-hook-form';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { DatePickerWithPresets } from './date-picker';
 import { ToastProvider } from "@/components/ui/toast";
 import { useToast } from '@/hooks/use-toast';
-import JoinMeetingLoad from './JoingMeetingLoad';
+import JoinMeetingLoad from './JoinMeetingLoad';
 
 type FormData = {
   meetingId: string;
@@ -108,7 +107,6 @@ function JoinMeetingForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [isMobile, setIsMobile] = useState(false);
   const [meetingIdCopied, setMeetingIdCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isMediaInitializing, setIsMediaInitializing] = useState(true);
@@ -118,6 +116,8 @@ function JoinMeetingForm() {
   const [isAudioEnabled, setIsAudioEnabled] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  const isMobile = typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false;
 
   const { register, handleSubmit, control, watch, setValue, formState: { errors } } = useForm<FormData>({
     defaultValues: {
@@ -392,7 +392,7 @@ function JoinMeetingForm() {
                   render={({ field, fieldState }) => (
                     <div className="relative">
                       <DatePickerWithPresets
-                        value={field.value}
+                        value={field.value ?? undefined}
                         onChange={field.onChange}
                       />
                       {fieldState.error && (
@@ -445,7 +445,6 @@ function JoinMeetingForm() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Joining...
                 </span>
               ) : (
                 'Join Meeting'
