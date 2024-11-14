@@ -243,8 +243,15 @@ const VideoContent = ({ call, onLeaveCall }: VideoContentProps) => {
     setTranslationState(prev => ({ ...prev, sourceLanguage: language }));
   };
 
-  const handleTargetLanguageChange = (language: string) => {
-    setTranslationState(prev => ({ ...prev, targetLanguage: language }));
+  const handleTargetLanguageChange = async (language: string) => {
+    try {
+      if (translationService.current && translationState.isActive) {
+        await translationService.current.updateTargetLanguage(language);
+      }
+      setTranslationState(prev => ({ ...prev, targetLanguage: language }));
+    } catch (error) {
+      console.error('Failed to update translation language:', error);
+    }
   };
 
   // Keep this effect as the main translation service manager
@@ -252,62 +259,58 @@ const VideoContent = ({ call, onLeaveCall }: VideoContentProps) => {
     const setupTranslation = async () => {
       if (translationState.isActive) {
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          if (!audioPlayer.current) {
+            audioPlayer.current = new AudioPlayer();
+          }
           
-          audioPlayer.current = new AudioPlayer();
-          
-          translationService.current = new TranslationService(
-            translationState.targetLanguage,
-            (translatedAudio, speaker) => {
-              console.log('Received translated audio for:', speaker.name);
-              audioPlayer.current?.playAudio(translatedAudio, speaker);
-            }
-          );
-
-          await translationService.current.start(
-            stream,
-            localParticipant?.sessionId || '',
-            isMicMuted
-          );
-
-          translationService.current.updateParticipants(participants);
-
+          if (!translationService.current) {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            translationService.current = new TranslationService(
+              translationState.targetLanguage,
+              (translatedAudio, speaker) => {
+                audioPlayer.current?.playAudio(translatedAudio, speaker);
+              }
+            );
+  
+            await translationService.current.start(
+              stream,
+              localParticipant?.sessionId || '',
+              isMicMuted
+            );
+  
+            translationService.current.updateParticipants(participants);
+          }
         } catch (error) {
           console.error('Failed to start translation:', error);
           setTranslationState(prev => ({ ...prev, isActive: false }));
-          
-          if (translationService.current) {
-            translationService.current.stop();
-            translationService.current = null;
-          }
-          if (audioPlayer.current) {
-            audioPlayer.current.stop();
-            audioPlayer.current = null;
-          }
+          cleanupTranslationServices();
         }
       } else {
-        if (translationService.current) {
-          translationService.current.stop();
-          translationService.current = null;
-        }
-        if (audioPlayer.current) {
-          audioPlayer.current.stop();
-          audioPlayer.current = null;
-        }
+        cleanupTranslationServices();
       }
     };
-
+  
     setupTranslation();
   }, [translationState.isActive, localParticipant?.sessionId]);
-
-  // This effect handles language changes
-  useEffect(() => {
-    if (translationState.isActive && translationService.current) {
-      translationService.current.stop();
-      setTranslationState(prev => ({ ...prev, isActive: false }));
-      setTimeout(() => setTranslationState(prev => ({ ...prev, isActive: true })), 100);
-    }
-  }, [translationState.targetLanguage]);
+    // Add cleanup helper function
+    const cleanupTranslationServices = () => {
+      if (translationService.current) {
+        translationService.current.stop();
+        translationService.current = null;
+      }
+      if (audioPlayer.current) {
+        audioPlayer.current.stop();
+        audioPlayer.current = null;
+      }
+    };
+  
+    // Cleanup on unmount
+    useEffect(() => {
+      return () => {
+        cleanupTranslationServices();
+      };
+    }, []);
 
   // Update participants when they change
   useEffect(() => {

@@ -1,5 +1,3 @@
-// src/app/TranslationService.ts
-
 import { StreamVideoParticipant } from '@stream-io/video-react-sdk';
 import { VoiceDetectionService } from './VoiceDetectionService';
 
@@ -10,6 +8,7 @@ export class TranslationService {
   private isMuted = false;
   private processingChunk = false;
   private voiceDetector: VoiceDetectionService | null = null;
+  private pendingTranslations: Array<Promise<void>> = [];
 
   constructor(
     private targetLanguage: string,
@@ -57,10 +56,53 @@ export class TranslationService {
     }
   }
 
+  public async updateTargetLanguage(newLanguage: string) {
+    console.log('Updating target language from', this.targetLanguage, 'to', newLanguage);
+    
+    // Wait for any ongoing translations to complete
+    if (this.pendingTranslations.length > 0) {
+      console.log('Waiting for pending translations to complete...');
+      await Promise.all(this.pendingTranslations);
+    }
+    
+    // Temporarily stop voice detection
+    if (this.voiceDetector && !this.isMuted) {
+      this.voiceDetector.stop();
+    }
+
+    this.targetLanguage = newLanguage;
+    
+    // Resume voice detection if not muted
+    if (this.voiceDetector && !this.isMuted) {
+      this.voiceDetector.start();
+    }
+
+    console.log('Target language updated successfully');
+  }
+
   private async processAudioData(audioData: Float32Array) {
     if (this.processingChunk) return;
     this.processingChunk = true;
 
+    // Create the translation promise
+    const processPromise = this.handleTranslation(audioData);
+    
+    // Add to pending translations
+    this.pendingTranslations.push(processPromise);
+
+    // Wait for completion and cleanup
+    try {
+      await processPromise;
+    } finally {
+      // Remove from pending translations
+      const index = this.pendingTranslations.indexOf(processPromise);
+      if (index > -1) {
+        this.pendingTranslations.splice(index, 1);
+      }
+    }
+  }
+
+  private async handleTranslation(audioData: Float32Array): Promise<void> {
     console.log('Processing audio data of length:', audioData.length);
 
     let speaker = Array.from(this.participants.values()).find(
@@ -80,7 +122,6 @@ export class TranslationService {
     }
 
     try {
-      // Convert Float32Array to WAV
       const wavData = this.encodeWAV(audioData);
       
       const formData = new FormData();
@@ -89,24 +130,10 @@ export class TranslationService {
       formData.append('output_file', `output_${crypto.randomUUID()}.wav`);
 
       const serverUrl = `${process.env.NEXT_PUBLIC_TRANSLATION_SERVER_ADDRESS}/predict`;
-      console.log('Translation request details:', {
-        url: serverUrl,
-        targetLanguage: this.targetLanguage,
-        formDataKeys: Array.from(formData.keys()),
-        audioSize: wavData.byteLength
-      });
-
-      console.log('Sending request to:', serverUrl);
       
       const response = await fetch(serverUrl, {
         method: 'POST',
         body: formData,
-      });
-
-      console.log('Response status:', response.status);
-      console.log('Response headers:', {
-        type: response.headers.get('content-type'),
-        length: response.headers.get('content-length')
       });
 
       if (!response.ok) {
@@ -114,12 +141,9 @@ export class TranslationService {
         throw new Error(`Translation failed: ${response.statusText}. Server response: ${errorText}`);
       }
 
-      console.log('Translation request successful');
       const translatedAudioData = await response.arrayBuffer();
-      console.log('Received translated audio of size:', translatedAudioData.byteLength);
 
       if (this.onTranslatedAudio && speaker) {
-        console.log('Invoking audio playback callback');
         await new Promise<void>((resolve) => {
           this.onTranslatedAudio(translatedAudioData, speaker);
           setTimeout(resolve, 500);
@@ -132,6 +156,26 @@ export class TranslationService {
       }
     } finally {
       this.processingChunk = false;
+    }
+  }
+
+  public updateParticipants(participants: StreamVideoParticipant[]) {
+    this.participants.clear();
+    for (const participant of participants) {
+      this.participants.set(participant.sessionId, participant);
+    }
+    console.log('Updated participants:', participants.length);
+  }
+
+  public setMuted(muted: boolean) {
+    console.log('Setting muted state:', muted);
+    this.isMuted = muted;
+    if (muted) {
+      if (this.voiceDetector) {
+        this.voiceDetector.stop();
+      }
+    } else if (this.voiceDetector && this.isActive) {
+      this.voiceDetector.start();
     }
   }
 
@@ -169,26 +213,6 @@ export class TranslationService {
     }
 
     return buffer;
-  }
-
-  public updateParticipants(participants: StreamVideoParticipant[]) {
-    this.participants.clear();
-    for (const participant of participants) {
-      this.participants.set(participant.sessionId, participant);
-    }
-    console.log('Updated participants:', participants.length);
-  }
-
-  public setMuted(muted: boolean) {
-    console.log('Setting muted state:', muted);
-    this.isMuted = muted;
-    if (muted) {
-      if (this.voiceDetector) {
-        this.voiceDetector.stop();
-      }
-    } else if (this.voiceDetector && this.isActive) {
-      this.voiceDetector.start();
-    }
   }
 
   public stop() {
