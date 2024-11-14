@@ -1,20 +1,40 @@
-import { StreamVideoParticipant, hasAudio } from '@stream-io/video-react-sdk';
+import { 
+  StreamVideoParticipant, 
+  hasAudio, 
+  Call, 
+  StreamVideoEvent,
+  CustomVideoEvent 
+} from '@stream-io/video-react-sdk';
+
+interface TranscriptionMessage {
+  text: string;
+  speakerId: string;
+  speakerName: string;
+  timestamp: number;
+}
+
+interface TranscriptionEventPayload {
+  type: 'transcription';
+  payload: TranscriptionMessage;
+}
 
 export class TranscriptionService {
   private ws: WebSocket | null = null;
   private mediaRecorder: MediaRecorder | null = null;
   private isActive = false;
   private participants = new Map<string, StreamVideoParticipant>();
-  private onTranscriptionCallback: ((message: { text: string; speaker: StreamVideoParticipant }) => void) | null = null;
+  private onTranscriptionCallback: ((message: TranscriptionMessage) => void) | null = null;
   private localParticipantId: string | null = null;
   private isMuted = false;
+  private unsubscribe: (() => void) | null = null;
 
   constructor(private language: string = 'en-US') {}
 
   public async start(
     audioStream: MediaStream, 
     localParticipantId: string,
-    onTranscription: (message: { text: string; speaker: StreamVideoParticipant }) => void
+    streamCall: Call,
+    onTranscription: (message: TranscriptionMessage) => void
   ) {
     if (this.isActive) return;
     
@@ -22,14 +42,38 @@ export class TranscriptionService {
       throw new Error('Browser not supported: audio/webm not supported');
     }
 
+    // Verify we have a valid call instance
+    if (!streamCall || typeof streamCall.on !== 'function' || typeof streamCall.sendCustomEvent !== 'function') {
+      throw new Error('Invalid Stream call instance provided');
+    }
+
     this.isActive = true;
     this.onTranscriptionCallback = onTranscription;
     this.localParticipantId = localParticipantId;
+
+    // Set up custom event listener
+    const unsubscribe = streamCall.on('custom', (event: StreamVideoEvent) => {
+      try {
+        const customEvent = event as CustomVideoEvent;
+        const eventData = customEvent.custom as TranscriptionEventPayload;
+
+        if (eventData?.type === 'transcription' && 
+            eventData.payload?.speakerId !== this.localParticipantId) {
+          console.log('Received transcription from:', eventData.payload.speakerName);
+          this.onTranscriptionCallback?.(eventData.payload);
+        }
+      } catch (error) {
+        console.error('Error processing custom event:', error);
+      }
+    });
+
+    this.unsubscribe = unsubscribe;
     
     try {
-      await this.setupWebSocket();
+      await this.setupWebSocket(streamCall);
       this.setupMediaRecorder(audioStream);
     } catch (error) {
+      this.unsubscribe?.();
       console.error('Failed to start transcription:', error);
       this.stop();
       throw error;
@@ -44,7 +88,7 @@ export class TranscriptionService {
     this.mediaRecorder.addEventListener('dataavailable', async (event) => {
       if (event.data.size > 0 && 
           this.ws?.readyState === WebSocket.OPEN && 
-          !this.isMuted) {  // Only send audio data if not muted
+          !this.isMuted) {
         this.ws.send(event.data);
       }
     });
@@ -52,7 +96,7 @@ export class TranscriptionService {
     this.mediaRecorder.start(1000);
   }
 
-  private async setupWebSocket(): Promise<void> {
+  private async setupWebSocket(streamCall: Call): Promise<void> {
     const DEEPGRAM_API_KEY = process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY;
     if (!DEEPGRAM_API_KEY) {
       throw new Error('Deepgram API key is not configured');
@@ -69,31 +113,30 @@ export class TranscriptionService {
         resolve();
       };
 
-      this.ws.onmessage = (message) => {
+      this.ws.onmessage = async (message) => {
         try {
           const received = JSON.parse(message.data);
           const transcript = received.channel.alternatives[0].transcript;
           
-          if (transcript && received.is_final) {
-            console.log('Raw transcription:', transcript);
-            
-            // Get the currently speaking participant or fallback to first participant
-            const speaker = Array.from(this.participants.values()).find(p => p.isSpeaking) 
-              || Array.from(this.participants.values())[0];
-    
-            console.log('Selected speaker:', speaker?.name);
-    
-            if (this.onTranscriptionCallback && speaker) {
-              console.log('Calling callback with:', { text: transcript, speaker: speaker.name });
-              this.onTranscriptionCallback({
-                text: transcript,
-                speaker
+          if (transcript && received.is_final && !this.isMuted) {
+            const transcriptionMessage: TranscriptionMessage = {
+              text: transcript,
+              speakerId: this.localParticipantId || '',
+              speakerName: this.participants.get(this.localParticipantId || '')?.name || 'Unknown',
+              timestamp: Date.now()
+            };
+
+            try {
+              // Send to other participants
+              await streamCall.sendCustomEvent({
+                type: 'transcription',
+                payload: transcriptionMessage
               });
-            } else {
-              console.log('No callback or speaker found:', {
-                hasCallback: !!this.onTranscriptionCallback,
-                hasSpeaker: !!speaker
-              });
+
+              // Process locally
+              this.onTranscriptionCallback?.(transcriptionMessage);
+            } catch (error) {
+              console.error('Error sending custom event:', error);
             }
           }
         } catch (error) {
@@ -120,13 +163,7 @@ export class TranscriptionService {
   public updateParticipants(participants: StreamVideoParticipant[]) {
     this.participants.clear();
     for (const participant of participants) {
-      // Don't include muted participants in speaker selection
-      if (participant.sessionId === this.localParticipantId && this.isMuted) {
-        continue;
-      }
-      if (!hasAudio(participant)) {
-        continue;
-      }      
+      if (!hasAudio(participant)) continue;     
       this.participants.set(participant.sessionId, participant);
     }
   }
@@ -142,6 +179,11 @@ export class TranscriptionService {
     if (this.ws) {
       this.ws.close();
       this.ws = null;
+    }
+
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = null;
     }
 
     this.participants.clear();

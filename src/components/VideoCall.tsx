@@ -116,7 +116,7 @@ const VideoCall: React.FC<VideoCallProps> = ({ meetingId }) => {
   return (
     <StreamVideo client={client}>
       <StreamCall call={call}>
-        <VideoContent call={call} onLeaveCall={handleLeaveCall} />
+        <VideoContent onLeaveCall={handleLeaveCall} />
       </StreamCall>
     </StreamVideo>
   );

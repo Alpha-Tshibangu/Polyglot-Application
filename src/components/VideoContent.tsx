@@ -17,6 +17,7 @@ import {
   ParticipantView,
   DefaultParticipantViewUI,
   StreamVideoParticipant,
+  useCall,
 } from '@stream-io/video-react-sdk';
 import { VideoContentProps, Position, DragOffset } from './types';
 import { thumbnailStyles, INITIAL_POSITION, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT } from './styles';
@@ -34,7 +35,9 @@ interface TranslationState {
   targetLanguage: string;
 }
 
-const VideoContent = ({ call, onLeaveCall }: VideoContentProps) => {
+const VideoContent = ({ onLeaveCall }: Omit<VideoContentProps, 'call'>) => {
+  const streamCall = useCall();
+  
   const {
     useParticipants,
     // useDominantSpeaker,
@@ -45,7 +48,7 @@ const VideoContent = ({ call, onLeaveCall }: VideoContentProps) => {
 
   const participants = useParticipants();
   const localParticipant = useLocalParticipant();
-  // const dominantSpeakerParticipant = useDominantSpeaker();
+  // const dominantSpeaker = useDominantSpeaker();
   const { camera, isMute: isCameraMuted } = useCameraState();
   const { microphone, isMute: isMicMuted } = useMicrophoneState();
   
@@ -107,18 +110,24 @@ const VideoContent = ({ call, onLeaveCall }: VideoContentProps) => {
       setCurrentTranscription(null);
       
       try {
+        // Verify we have a valid call instance
+        if (!streamCall) {
+          throw new Error('No active call found');
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         
         transcriptionService.current = new TranscriptionService();
         await transcriptionService.current.start(
           stream,
           localParticipant?.sessionId || '',
+          streamCall,
           (message) => {
             console.log('Received transcription in VideoContent:', message);
             setShowTranscriptionDots(false);
             setCurrentTranscription({
               text: message.text,
-              speaker: message.speaker.name
+              speaker: message.speakerName
             });
           }
         );
@@ -194,10 +203,10 @@ const VideoContent = ({ call, onLeaveCall }: VideoContentProps) => {
 
   // Set participant sorting
   useEffect(() => {
-    if (!call) return;
+    if (!streamCall) return;
     const customSorting = getCustomSortingPreset(participants.length <= 2);
-    call.setSortParticipantsBy(customSorting);
-  }, [call, participants.length]);
+    streamCall.setSortParticipantsBy(customSorting);
+  }, [streamCall, participants.length]);
 
   // Clean up on unmount
   useEffect(() => {
